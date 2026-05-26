@@ -9,7 +9,7 @@ export async function testBackendConnection() {
 ╔════════════════════════════════════════════════════════════╗
 ║           🔧 BACKEND DIAGNOSTIC TEST                      ║
 ║                                                            ║
-║ Testing backend server on http://localhost:3001           ║
+║ Testing backend server on http://https://ronit-workspace-backend.onrender.com           ║
 ╚════════════════════════════════════════════════════════════╝
 `);
 
@@ -18,7 +18,7 @@ export async function testBackendConnection() {
   // Test 1: Health Check
   console.log(`\n📋 Test 1: Health Check (GET /health)`);
   try {
-    const response = await fetch('http://localhost:3001/health', {
+    const response = await fetch('http://https://ronit-workspace-backend.onrender.com/health', {
       method: 'GET',
       headers: { 'Content-Type': 'application/json' }
     });
@@ -41,7 +41,7 @@ export async function testBackendConnection() {
   // Test 2: Diagnostics Endpoint
   console.log(`\n📋 Test 2: Diagnostics (GET /api/diagnostics)`);
   try {
-    const response = await fetch('http://localhost:3001/api/diagnostics', {
+    const response = await fetch('http://https://ronit-workspace-backend.onrender.com/api/diagnostics', {
       method: 'GET',
       headers: { 'Content-Type': 'application/json' }
     });
@@ -65,7 +65,7 @@ export async function testBackendConnection() {
   console.log(`\n📋 Test 3: Image Generation (POST /api/generate-image)`);
   console.log(`   ⏳ Generating test image (this may take 10-30 seconds)...`);
   try {
-    const response = await fetch('http://localhost:3001/api/generate-image', {
+    const response = await fetch('http://https://ronit-workspace-backend.onrender.com/api/generate-image', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ prompt: 'a simple red square' })

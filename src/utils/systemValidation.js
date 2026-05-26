@@ -6,7 +6,7 @@
 export async function validateBackendConnection() {
   try {
     console.log('[VALIDATION] Testing backend connection...');
-    const response = await fetch('http://localhost:3001/health');
+    const response = await fetch('http://https://ronit-workspace-backend.onrender.com/health');
     const data = await response.json();
     console.log('[VALIDATION] ✅ Backend is running:', data);
     return { status: 'ok', data };

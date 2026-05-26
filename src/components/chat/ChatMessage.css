@@ -1,0 +1,222 @@
+/* ChatMessage Component Styles */
+
+.message {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 12px 0;
+  animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.message-sender {
+  font-weight: 600;
+  font-size: 0.85rem;
+  opacity: 0.7;
+  margin: 0;
+}
+
+.message-content {
+  line-height: 1.5;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+/* Typing Cursor Animation */
+.typing-cursor {
+  animation: blink 1s infinite;
+  margin-left: 2px;
+}
+
+@keyframes blink {
+  0%, 49% {
+    opacity: 1;
+  }
+  50%, 100% {
+    opacity: 0;
+  }
+}
+
+/* User Message */
+.user-message {
+  align-items: flex-end;
+  margin-left: 20%;
+}
+
+.user-message .message-content {
+  background: var(--accent);
+  color: white;
+  padding: 10px 14px;
+  border-radius: 12px;
+  max-width: 100%;
+}
+
+/* AI Message */
+.ai-message {
+  align-items: flex-start;
+  margin-right: 20%;
+}
+
+.ai-message .message-content {
+  background: var(--surface-secondary, rgba(255, 255, 255, 0.05));
+  color: var(--text);
+  padding: 10px 14px;
+  border-radius: 12px;
+  max-width: 100%;
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.1));
+}
+
+/* Thinking Indicator */
+.thinking-indicator .message-content {
+  display: none;
+}
+
+.thinking-dots {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  padding: 8px 0;
+}
+
+.thinking-dots span {
+  width: 8px;
+  height: 8px;
+  background: currentColor;
+  border-radius: 50%;
+  animation: thinking-bounce 1.4s infinite;
+}
+
+.thinking-dots span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.thinking-dots span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes thinking-bounce {
+  0%, 100% {
+    opacity: 0.3;
+    transform: translateY(0);
+  }
+  50% {
+    opacity: 1;
+    transform: translateY(-8px);
+  }
+}
+
+.thinking-text {
+  font-size: 0.9rem;
+  opacity: 0.7;
+  margin: 0;
+}
+
+/* Typing Animation Indicator */
+.typing-animation .typing-dots {
+  display: flex;
+  gap: 3px;
+  margin-top: 4px;
+}
+
+.typing-animation .typing-dots span {
+  width: 6px;
+  height: 6px;
+  background: currentColor;
+  border-radius: 50%;
+  animation: typing-wave 1.4s infinite;
+}
+
+.typing-animation .typing-dots span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.typing-animation .typing-dots span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes typing-wave {
+  0%, 100% {
+    transform: translateY(0);
+    opacity: 0.4;
+  }
+  50% {
+    transform: translateY(-10px);
+    opacity: 1;
+  }
+}
+
+/* Message Attachment */
+.message-attachment {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--surface-tertiary, rgba(255, 255, 255, 0.08));
+  padding: 6px 10px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  border: 1px solid var(--border, rgba(255, 255, 255, 0.15));
+  margin: 4px 0;
+}
+
+.message-attachment span {
+  opacity: 0.8;
+  word-break: break-all;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .user-message {
+    margin-left: 10%;
+  }
+
+  .ai-message {
+    margin-right: 10%;
+  }
+}
+
+@media (max-width: 480px) {
+  .message {
+    margin: 8px 0;
+    padding: 10px 12px;
+    border-radius: 14px;
+    font-size: 0.88rem;
+    word-wrap: break-word;
+    word-break: break-word;
+    overflow-wrap: break-word;
+  }
+
+  .user-message {
+    margin-left: 5%;
+    margin-right: 0;
+  }
+
+  .ai-message {
+    margin-right: 5%;
+    margin-left: 0;
+  }
+
+  .message-sender {
+    font-size: 0.8rem;
+  }
+
+  .message-content {
+    font-size: 0.88rem;
+    line-height: 1.4;
+  }
+
+  .message-attachment {
+    font-size: 0.8rem;
+    padding: 4px 8px;
+    gap: 6px;
+  }
+}

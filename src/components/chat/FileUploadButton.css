@@ -1,0 +1,12 @@
+/* ============================================
+   FILE UPLOAD BUTTON STYLES
+   ============================================ */
+
+.file-upload-input {
+  display: none;
+}
+
+.file-drag-active {
+  background: rgba(99, 102, 241, 0.2) !important;
+  border-color: rgba(99, 102, 241, 0.5) !important;
+}

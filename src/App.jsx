@@ -9,6 +9,7 @@ import {
 
 import Sidebar from "./components/layout/Sidebar";
 import Topbar from "./components/layout/Topbar";
+import UpdateNotification from "./components/common/UpdateNotification";
 
 import AuthPage from "./pages/AuthPage";
 import ChatPage from "./pages/ChatPage";
@@ -117,6 +118,8 @@ function App() {
 
   return (
     <div className={appClassName}>
+      <UpdateNotification />
+      
       <Sidebar
         activePage={activePage}
         setActivePage={handleSetActivePage}

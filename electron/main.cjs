@@ -1,7 +1,8 @@
-const { app, BrowserWindow, Menu, globalShortcut } = require("electron");
+const { app, BrowserWindow, Menu, globalShortcut, ipcMain, dialog } = require("electron");
 const path = require("path");
 const fs = require("fs");
 const { spawn } = require("child_process");
+const { autoUpdater } = require("electron-updater");
 
 const isDev = !app.isPackaged;
 
@@ -16,6 +17,76 @@ app.commandLine.appendSwitch("enable-features", "VizDisplayCompositor");
 app.commandLine.appendSwitch("disable-extensions");
 app.commandLine.appendSwitch("disable-sync");
 app.commandLine.appendSwitch("no-service-autorun");
+
+// =========================
+// AUTO-UPDATER CONFIGURATION
+// =========================
+if (!isDev) {
+  // Configure auto-updater for production
+  autoUpdater.checkForUpdatesAndNotify();
+  
+  // Handle update events
+  autoUpdater.on("update-available", (info) => {
+    console.log("🔄 Update available:", info.version);
+    
+    if (mainWindow) {
+      mainWindow.webContents.send("update-available", {
+        version: info.version,
+        releaseDate: info.releaseDate,
+        releaseNotes: info.releaseNotes,
+      });
+    }
+  });
+
+  autoUpdater.on("update-not-available", () => {
+    console.log("✅ App is up to date");
+  });
+
+  autoUpdater.on("error", (error) => {
+    console.error("❌ Update error:", error);
+  });
+
+  autoUpdater.on("download-progress", (progress) => {
+    console.log(`📥 Download progress: ${Math.round(progress.percent)}%`);
+    
+    if (mainWindow) {
+      mainWindow.webContents.send("download-progress", {
+        percent: progress.percent,
+        bytesPerSecond: progress.bytesPerSecond,
+        transferred: progress.transferred,
+        total: progress.total,
+      });
+    }
+  });
+
+  autoUpdater.on("update-downloaded", () => {
+    console.log("✅ Update downloaded, will install on quit");
+    
+    if (mainWindow) {
+      mainWindow.webContents.send("update-downloaded");
+    }
+  });
+
+  // Check for updates periodically (every hour)
+  setInterval(() => {
+    autoUpdater.checkForUpdates().catch((err) => {
+      console.error("Periodic update check failed:", err);
+    });
+  }, 60 * 60 * 1000);
+}
+
+// =========================
+// IPC HANDLERS FOR UPDATES
+// =========================
+ipcMain.on("restart-app", () => {
+  autoUpdater.quitAndInstall();
+});
+
+ipcMain.on("check-for-updates", () => {
+  if (!isDev) {
+    autoUpdater.checkForUpdates();
+  }
+});
 
 // =========================
 // SINGLE INSTANCE LOCK

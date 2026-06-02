@@ -12,6 +12,9 @@ export function AppProvider({ children }) {
   const [pendingAIText, setPendingAIText] = useState("");
   const [currentSession, setCurrentSession] = useState(null);
   const [activeSessions, setActiveSessions] = useState([]);
+  const [updateAvailable, setUpdateAvailable] = useState(null);
+  const [updateProgress, setUpdateProgress] = useState(null);
+  const [updateDownloaded, setUpdateDownloaded] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -121,6 +124,24 @@ export function AppProvider({ children }) {
 
     window.addEventListener("avatar_updated", handleAvatarUpdate);
 
+    // Setup update listeners if running in Electron
+    if (window.electron) {
+      window.electron.on("update-available", (data) => {
+        console.log("🔄 Update available:", data.version);
+        setUpdateAvailable(data);
+      });
+
+      window.electron.on("download-progress", (data) => {
+        console.log("📥 Download progress:", data.percent);
+        setUpdateProgress(data);
+      });
+
+      window.electron.on("update-downloaded", () => {
+        console.log("✅ Update downloaded");
+        setUpdateDownloaded(true);
+      });
+    }
+
     return () => {
       mounted = false;
       window.removeEventListener("avatar_updated", handleAvatarUpdate);
@@ -150,6 +171,18 @@ export function AppProvider({ children }) {
     }
   };
 
+  const installUpdate = () => {
+    if (window.electron && updateDownloaded) {
+      window.electron.send("restart-app");
+    }
+  };
+
+  const checkForUpdates = () => {
+    if (window.electron) {
+      window.electron.send("check-for-updates");
+    }
+  };
+
   return (
     <AppContext.Provider
       value={{
@@ -164,6 +197,11 @@ export function AppProvider({ children }) {
         currentSession,
         activeSessions,
         refreshActiveSessions,
+        updateAvailable,
+        updateProgress,
+        updateDownloaded,
+        installUpdate,
+        checkForUpdates,
       }}
     >
       {!loading && children}

@@ -2,29 +2,37 @@
   "name": "RonitWorkspace",
   "productName": "Ronit Workspace",
   "description": "AI-powered personal workspace with chat, notes, tasks, and file management",
+  "author": "Ronit",
   "private": true,
   "version": "1.0.0",
   "main": "electron/main.cjs",
   "type": "module",
+
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
     "server": "node server.cjs",
+
     "electron": "electron ./electron/main.cjs",
     "electron-dev": "wait-on tcp:5173 && electron ./electron/main.cjs",
+
     "full": "concurrently \"npm run dev\" \"npm run server\" \"npm run electron-dev\"",
+
     "dist": "npm run build && electron-builder",
     "dist:win": "npm run build && electron-builder --win",
-    "dist:portable": "npm run build && electron-builder --win --portable"
+    "dist:portable": "npm run build && electron-builder --win --portable",
+    "dist:publish": "npm run build && electron-builder --win -p always"
   },
+
   "dependencies": {
     "@supabase/supabase-js": "^2.106.0",
     "axios": "^1.16.1",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "electron-store": "^11.0.2",
+    "electron-updater": "^6.8.3",
     "express": "^5.2.1",
     "framer-motion": "^12.39.0",
     "lucide-react": "^1.16.0",
@@ -32,6 +40,7 @@
     "react": "^19.2.6",
     "react-dom": "^19.2.6"
   },
+
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@types/react": "^19.2.14",
@@ -51,13 +60,19 @@
     "vite": "^8.0.12",
     "wait-on": "^8.0.5"
   },
+
   "build": {
     "appId": "com.ronit.workspace",
+
     "productName": "Ronit Workspace",
+
+    "generateUpdatesFilesForAllChannels": true,
+
     "directories": {
       "buildResources": "build",
       "output": "release"
     },
+
     "files": [
       "dist/**/*",
       "electron/**/*",
@@ -65,10 +80,22 @@
       "server.cjs",
       "package.json"
     ],
+
     "asarUnpack": [
       "server.cjs"
     ],
+
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "ronitworkspace",
+        "repo": "RonitWorkspace"
+      }
+    ],
+
     "win": {
+      "icon": "build/icon.ico",
+
       "target": [
         {
           "target": "nsis",
@@ -82,19 +109,17 @@
             "x64"
           ]
         }
-      ],
-      "icon": "build/icon.ico"
+      ]
     },
+
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Ronit Workspace",
-      "installerIcon": "build/icon.ico",
-      "uninstallerIcon": "build/icon.ico",
-      "installerHeaderIcon": "build/icon.ico"
+      "shortcutName": "Ronit Workspace"
     },
+
     "portable": {
       "artifactName": "${productName}-${version}-portable.exe"
     }

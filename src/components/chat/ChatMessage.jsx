@@ -1,12 +1,12 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, memo, useCallback } from "react";
 import ImageMessage from "./ImageMessage";
 import "./ChatMessage.css";
 
-function ChatMessage({ sender, text, imageUrl, imageId, prompt }) {
+function ChatMessage({ sender, text, imageUrl, imageId, prompt, messageId, onRegenerate, onDelete }) {
   const [displayedText, setDisplayedText] = useState("");
   const [isTyping, setIsTyping] = useState(false);
 
-  // Typing animation effect
+  // Optimized typing animation - reduce update frequency
   useEffect(() => {
     if (!text) {
       setDisplayedText("");
@@ -22,7 +22,8 @@ function ChatMessage({ sender, text, imageUrl, imageId, prompt }) {
       setDisplayedText("");
       
       let currentIndex = 0;
-      const typingSpeed = 15; // milliseconds per character
+      // Increased typing speed for smoother feel (reduced latency)
+      const typingSpeed = 8; // milliseconds per character - faster but still visible
       
       const typingInterval = setInterval(() => {
         if (currentIndex <= text.length) {
@@ -36,11 +37,23 @@ function ChatMessage({ sender, text, imageUrl, imageId, prompt }) {
 
       return () => clearInterval(typingInterval);
     } else {
-      // For user messages and non-animated content, display immediately
+      // For user messages, display immediately
       setDisplayedText(text);
       setIsTyping(false);
     }
   }, [text, sender]);
+
+  const handleRegenerate = useCallback(() => {
+    if (onRegenerate) {
+      onRegenerate(messageId);
+    }
+  }, [messageId, onRegenerate]);
+
+  const handleDelete = useCallback(() => {
+    if (onDelete) {
+      onDelete(messageId);
+    }
+  }, [messageId, onDelete]);
 
   return (
     <div
@@ -71,4 +84,4 @@ function ChatMessage({ sender, text, imageUrl, imageId, prompt }) {
   );
 }
 
-export default ChatMessage;
+export default memo(ChatMessage);

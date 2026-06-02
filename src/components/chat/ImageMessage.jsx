@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, memo, useCallback } from "react";
 import { Download, Copy } from "lucide-react";
 import { downloadImage, copyImageToClipboard } from "../../services/imageGenerationService";
 import { resolveImageDisplayUrl } from "../../services/imageStorageService";
@@ -60,14 +60,14 @@ function ImageMessage({ imageUrl, imageId, prompt }) {
     };
   }, [imageUrl, imageId]);
 
-  const fetchDisplayBlob = async () => {
+  const fetchDisplayBlob = useCallback(async () => {
     if (!displayUrl) throw new Error("Image not loaded");
     const response = await fetch(displayUrl);
     if (!response.ok) throw new Error("Failed to fetch image");
     return response.blob();
-  };
+  }, [displayUrl]);
 
-  const handleDownload = async () => {
+  const handleDownload = useCallback(async () => {
     try {
       setDownloading(true);
       const blob = await fetchDisplayBlob();
@@ -80,9 +80,9 @@ function ImageMessage({ imageUrl, imageId, prompt }) {
     } finally {
       setDownloading(false);
     }
-  };
+  }, [fetchDisplayBlob, addToast]);
 
-  const handleCopy = async () => {
+  const handleCopy = useCallback(async () => {
     try {
       setCopying(true);
       const blob = await fetchDisplayBlob();
@@ -94,7 +94,7 @@ function ImageMessage({ imageUrl, imageId, prompt }) {
     } finally {
       setCopying(false);
     }
-  };
+  }, [fetchDisplayBlob, addToast]);
 
   return (
     <div className="image-message">
@@ -146,4 +146,4 @@ function ImageMessage({ imageUrl, imageId, prompt }) {
   );
 }
 
-export default ImageMessage;
+export default memo(ImageMessage);

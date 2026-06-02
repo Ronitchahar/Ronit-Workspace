@@ -1,5 +1,7 @@
+import { memo, useCallback } from "react";
+
 function FileCard({ file, deleteFile }) {
-  const getFileIcon = (name) => {
+  const getFileIcon = useCallback((name) => {
     if (!name) return "📄";
     if (name.match(/\.(pdf)$/i)) return "📕";
     if (name.match(/\.(jpg|jpeg|png|gif|svg|webp)$/i)) return "🖼️";
@@ -8,24 +10,32 @@ function FileCard({ file, deleteFile }) {
     if (name.match(/\.(mp4|mov|avi)$/i)) return "🎬";
     if (name.match(/\.(mp3|wav)$/i)) return "🎵";
     return "📄";
-  };
+  }, []);
 
-  const formatSize = (bytes) => {
+  const formatSize = useCallback((bytes) => {
     if (!bytes || bytes === 0) return "0 B";
     const k = 1024;
     const sizes = ["B", "KB", "MB", "GB"];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return `${parseFloat((bytes / Math.pow(k, i)).toFixed(1))} ${sizes[i]}`;
-  };
+  }, []);
 
-  const formatDate = (dateStr) => {
+  const formatDate = useCallback((dateStr) => {
     if (!dateStr) return "Just now";
     return new Date(dateStr).toLocaleDateString(undefined, {
       month: "short",
       day: "numeric",
       year: "numeric",
     });
-  };
+  }, []);
+
+  const handleDelete = useCallback(() => {
+    deleteFile(file.id);
+  }, [file.id, deleteFile]);
+
+  const handleStopPropagation = useCallback((e) => {
+    e.stopPropagation();
+  }, []);
 
   const isImage = file.name?.match(/\.(jpg|jpeg|png|gif|svg|webp)$/i);
   const canOpen = Boolean(file.url);
@@ -50,7 +60,7 @@ function FileCard({ file, deleteFile }) {
               className="files-file-overlay-btn"
               title="Preview"
               aria-label={`Preview ${file.name}`}
-              onClick={(e) => e.stopPropagation()}
+              onClick={handleStopPropagation}
             >
               <span aria-hidden="true">👁</span>
               <span className="files-overlay-label">Preview</span>
@@ -65,7 +75,7 @@ function FileCard({ file, deleteFile }) {
               className="files-file-overlay-btn"
               title="Download"
               aria-label={`Download ${file.name}`}
-              onClick={(e) => e.stopPropagation()}
+              onClick={handleStopPropagation}
             >
               <span aria-hidden="true">⬇</span>
               <span className="files-overlay-label">Download</span>
@@ -74,7 +84,7 @@ function FileCard({ file, deleteFile }) {
           <button
             type="button"
             className="files-file-overlay-btn delete-btn"
-            onClick={() => deleteFile(file.id)}
+            onClick={handleDelete}
             title="Delete"
             aria-label={`Delete ${file.name}`}
           >
@@ -100,7 +110,7 @@ function FileCard({ file, deleteFile }) {
             rel="noreferrer"
             className="files-file-action-btn"
             title="Open / download"
-            onClick={(e) => e.stopPropagation()}
+            onClick={handleStopPropagation}
           >
             ⬇️
           </a>
@@ -108,7 +118,7 @@ function FileCard({ file, deleteFile }) {
         <button
           type="button"
           className="files-file-action-btn delete-btn"
-          onClick={() => deleteFile(file.id)}
+          onClick={handleDelete}
           title="Delete file"
           aria-label={`Delete ${file.name}`}
         >
@@ -119,4 +129,4 @@ function FileCard({ file, deleteFile }) {
   );
 }
 
-export default FileCard;
+export default memo(FileCard);

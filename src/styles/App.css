@@ -19,17 +19,18 @@
 .sidebar {
   width: 280px;
   background: var(--panel);
-  backdrop-filter: blur(24px);
+  backdrop-filter: blur(12px);
   border-right: 1px solid var(--border);
   padding: 28px 24px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
   gap: 24px;
-  transition: width 0.4s cubic-bezier(0.16, 1, 0.3, 1), padding 0.4s cubic-bezier(0.16, 1, 0.3, 1), background 0.35s ease;
+  transition: width 0.3s ease-out, padding 0.3s ease-out;
   overflow: hidden;
   white-space: nowrap;
-  box-shadow: 10px 0 30px rgba(0, 0, 0, 0.05);
+  box-shadow: 8px 0 20px rgba(0, 0, 0, 0.04);
+  will-change: width;
 }
 
 .app.sidebar-closed .sidebar {
@@ -88,8 +89,9 @@
   color: var(--text-muted);
   background: transparent;
   cursor: pointer;
-  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: background 0.2s ease-out, color 0.2s ease-out, border-left-color 0.2s ease-out;
   font-weight: 500;
+  will-change: background, color;
 }
 
 .app.sidebar-closed .menu button,
@@ -142,8 +144,9 @@ button.active {
   gap: 1rem;
   border-bottom: 1px solid rgba(148, 163, 184, 0.12);
   background: rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(12px);
-  transition: background 0.35s ease, border-color 0.35s ease;
+  backdrop-filter: blur(8px);
+  transition: background 0.25s ease-out, border-color 0.25s ease-out;
+  will-change: background;
 }
 
 .topbar-left {
@@ -213,8 +216,13 @@ button.active {
   flex-direction: column;
   gap: 20px;
   overflow-y: auto;
+  overflow-x: hidden;
   border-bottom: 1px solid rgba(148, 163, 184, 0.12);
-  transition: background 0.35s ease;
+  transition: background 0.25s ease-out;
+  /* Optimize scrolling performance */
+  -webkit-overflow-scrolling: touch;
+  will-change: scroll-position;
+  contain: layout style paint;
 }
 
 .app.dark .chat-window {
@@ -262,7 +270,9 @@ button.active {
   padding: 20px;
   line-height: 1.7;
   box-shadow: var(--shadow);
-  transition: background 0.35s ease, color 0.35s ease, border-color 0.35s ease;
+  transition: background 0.2s ease-out, color 0.2s ease-out;
+  will-change: contents;
+  contain: layout style;
 }
 
 .message p {

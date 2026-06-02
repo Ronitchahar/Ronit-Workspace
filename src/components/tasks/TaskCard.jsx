@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, memo, useCallback } from "react";
 import { useToast } from "../../context/ToastContext";
 
 function TaskCard({ task, toggleTask, deleteTask }) {
@@ -48,11 +48,19 @@ function TaskCard({ task, toggleTask, deleteTask }) {
     updateCountdown();
     const interval = setInterval(updateCountdown, 60000);
     return () => clearInterval(interval);
-  }, [task.due_date]);
+  }, [task.due_date, task.completed, task.title, addToast]);
+
+  const handleToggle = useCallback(() => {
+    toggleTask(task.id);
+  }, [task.id, toggleTask]);
+
+  const handleDelete = useCallback(() => {
+    deleteTask(task.id);
+  }, [task.id, deleteTask]);
 
   return (
     <div className={`bento-task-card fade-in-up ${task.completed ? "completed" : ""} ${isOverdue && !task.completed ? "overdue" : ""}`}>
-      <div className="task-checkbox" onClick={() => toggleTask(task.id)}>
+      <div className="task-checkbox" onClick={handleToggle}>
         <div className={`checkbox-inner ${task.completed ? "checked" : ""}`}>
            {task.completed && "✓"}
         </div>
@@ -67,9 +75,9 @@ function TaskCard({ task, toggleTask, deleteTask }) {
           )}
         </div>
       </div>
-      <button className="delete-task-btn" onClick={() => deleteTask(task.id)}>🗑</button>
+      <button className="delete-task-btn" onClick={handleDelete}>🗑</button>
     </div>
   );
 }
 
-export default TaskCard;
+export default memo(TaskCard);

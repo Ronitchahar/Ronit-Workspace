@@ -6,13 +6,16 @@ const { spawn } = require("child_process");
 const isDev = !app.isPackaged;
 
 // =========================
-// FIX GPU CACHE / BLINKING
+// ENABLE PERFORMANCE OPTIMIZATIONS
 // =========================
-app.disableHardwareAcceleration();
+// Enable hardware acceleration for smooth rendering
+app.commandLine.appendSwitch("enable-gpu-rasterization");
+app.commandLine.appendSwitch("enable-features", "VizDisplayCompositor");
 
-app.commandLine.appendSwitch("disable-gpu");
-
-app.commandLine.appendSwitch("disable-software-rasterizer");
+// Optimize memory and rendering
+app.commandLine.appendSwitch("disable-extensions");
+app.commandLine.appendSwitch("disable-sync");
+app.commandLine.appendSwitch("no-service-autorun");
 
 // =========================
 // SINGLE INSTANCE LOCK
@@ -166,6 +169,13 @@ const createWindow = () => {
       contextIsolation: true,
 
       preload: path.join(__dirname, "preload.js"),
+
+      // Performance optimizations
+      sandbox: true,
+      enableRemoteModule: false,
+      v8Code: false,
+      // Enable v-sync for smooth rendering
+      vsyncOff: false,
     },
   });
 

@@ -645,10 +645,106 @@ Reason: ${routeResult.reason}
       console.log('🤔 Calling AI service...');
       console.log('   History items:', messages.length);
       console.log('   Message:', currentText.substring(0, 100));
+      console.log('   Has image file:', !!currentFile);
+      console.log('   Has image blob:', !!currentFileBlob);
+      
+      // CRITICAL: Prepare file data if an image/file exists
+      let fileDataForAI = null;
+      if (currentFileBlob && currentFile) {
+        try {
+          console.log('📸 Preparing image/file for AI model...');
+          
+          // Validate the file exists and is a proper blob
+          if (!(currentFileBlob instanceof Blob)) {
+            throw new Error('File blob is not a valid Blob instance');
+          }
+          
+          if (currentFileBlob.size === 0) {
+            throw new Error('File blob is empty - no data to process');
+          }
+          
+          console.log(`[NORMAL_CHAT] File size: ${currentFileBlob.size} bytes, Type: ${currentFileBlob.type}`);
+          
+          // Determine if this is an image or other file type
+          const isImage = currentFile.type?.startsWith('image/') || currentFileBlob.type?.startsWith('image/');
+          
+          if (isImage) {
+            // For images: convert to base64 and prepare multimodal payload
+            console.log('[NORMAL_CHAT] Converting image to base64 for multimodal AI...');
+            
+            const base64DataUrl = await new Promise((resolve, reject) => {
+              const reader = new FileReader();
+              reader.onload = () => resolve(reader.result);
+              reader.onerror = () => reject(new Error('Failed to read image file'));
+              reader.readAsDataURL(currentFileBlob);
+            });
+            
+            if (!base64DataUrl || !base64DataUrl.startsWith('data:')) {
+              throw new Error('Failed to convert image to data URL');
+            }
+            
+            console.log('[NORMAL_CHAT] ✅ Image converted to base64');
+            console.log('[NORMAL_CHAT] Base64 URL length:', base64DataUrl.length);
+            console.log('[NORMAL_CHAT] Base64 URL format valid:', base64DataUrl.startsWith('data:image/'));
+            
+            fileDataForAI = {
+              type: 'image',
+              content: base64DataUrl,  // Full data URL: data:image/png;base64,...
+              file: currentFile
+            };
+            
+            console.log('[NORMAL_CHAT] ✅ Image data prepared for AI');
+          } else {
+            // For non-image files: extract text content
+            console.log('[NORMAL_CHAT] Processing non-image file for AI...');
+            
+            const fileContent = await currentFileBlob.text();
+            const fileType = currentFile.name?.split('.').pop()?.toUpperCase() || 'DOCUMENT';
+            
+            if (!fileContent || fileContent.trim().length === 0) {
+              throw new Error('File is empty - no content to analyze');
+            }
+            
+            fileDataForAI = {
+              type: currentFile.type?.includes('pdf') ? 'pdf' : 'text',
+              content: fileContent,
+              file: currentFile
+            };
+            
+            console.log('[NORMAL_CHAT] ✅ File data prepared for AI');
+          }
+        } catch (fileProcessError) {
+          console.error('[NORMAL_CHAT] ❌ Error preparing file for AI:', fileProcessError);
+          console.error('[NORMAL_CHAT] Error details:', {
+            message: fileProcessError.message,
+            fileName: currentFile?.name,
+            fileSize: currentFileBlob?.size,
+            fileType: currentFile?.type
+          });
+          
+          // Show error but continue with text-only request
+          addToast(`Warning: Could not process image/file (${fileProcessError.message}). Sending text only.`, 'warning');
+          
+          // Log this issue for debugging
+          console.warn('[NORMAL_CHAT] ⚠️ Falling back to text-only request due to file processing error');
+          fileDataForAI = null;
+        }
+      }
+      
+      // If we have an image but failed to process it, warn the user
+      if ((currentFile || currentFileBlob) && !fileDataForAI) {
+        console.warn('[NORMAL_CHAT] ⚠️ File was provided but could not be processed for AI');
+      }
       
       let aiReply;
       try {
-        aiReply = await getContextualAIResponse(currentText, messages, currentFile);
+        console.log('[NORMAL_CHAT] Sending request to AI with:', {
+          hasText: !!currentText,
+          hasFileData: !!fileDataForAI,
+          fileDataType: fileDataForAI?.type || 'none'
+        });
+        
+        aiReply = await getContextualAIResponse(currentText, messages, fileDataForAI);
         
         if (!aiReply || typeof aiReply !== 'string' || aiReply.trim().length === 0) {
           console.warn('⚠️ Empty AI response received');

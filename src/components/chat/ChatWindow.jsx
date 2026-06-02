@@ -1,56 +1,63 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useCallback, memo } from "react";
 import ChatMessage from "./ChatMessage";
 import "./ChatWindow.css";
 
 function ChatWindow({ messages, onRegenerate, onDelete }) {
   const chatWindowRef = useRef(null);
+  const hasAutoScrolled = useRef(false);
 
-  // Auto-scroll to latest message with smooth behavior
+  // Optimized auto-scroll: only on new messages
   useEffect(() => {
-    // Use a timeout to ensure DOM updates are complete
-    const scrollTimer = setTimeout(() => {
+    if (!chatWindowRef.current || !messages.length) return;
+
+    // Use requestAnimationFrame for smooth scrolling
+    requestAnimationFrame(() => {
       if (chatWindowRef.current) {
         chatWindowRef.current.scrollTop = chatWindowRef.current.scrollHeight;
+        hasAutoScrolled.current = true;
       }
-    }, 50);
+    });
+  }, [messages.length]); // Only depend on message count, not entire array
 
-    return () => clearTimeout(scrollTimer);
-  }, [messages]);
+  // Memoized scroll handler
+  const handleScroll = useCallback(() => {
+    // Debounced scroll position save
+    if (!chatWindowRef.current) return;
+    sessionStorage.setItem("chatWindowScroll", chatWindowRef.current.scrollTop);
+  }, []);
 
-  // Preserve scroll position on navigation
+  // Restore scroll position on mount
   useEffect(() => {
     if (!chatWindowRef.current) return;
 
-    // Save scroll position to sessionStorage
-    const saveScroll = () => {
-      sessionStorage.setItem(
-        "chatWindowScroll",
-        chatWindowRef.current?.scrollTop || 0
-      );
-    };
-
-    chatWindowRef.current.addEventListener("scroll", saveScroll);
-
-    // Restore scroll position
     const savedScroll = sessionStorage.getItem("chatWindowScroll");
-    if (savedScroll && chatWindowRef.current) {
-      chatWindowRef.current.scrollTop = parseInt(savedScroll, 10);
+    if (savedScroll) {
+      // Restore on next frame to ensure DOM is ready
+      requestAnimationFrame(() => {
+        if (chatWindowRef.current) {
+          chatWindowRef.current.scrollTop = parseInt(savedScroll, 10);
+        }
+      });
     }
 
+    chatWindowRef.current.addEventListener("scroll", handleScroll, { passive: true });
+
     return () => {
-      chatWindowRef.current?.removeEventListener("scroll", saveScroll);
+      chatWindowRef.current?.removeEventListener("scroll", handleScroll);
     };
-  }, []);
+  }, [handleScroll]);
 
   return (
     <div ref={chatWindowRef} className="chat-window">
       {messages && messages.length > 0 ? (
-        messages.map((msg, index) => (
+        messages.map((msg) => (
           <ChatMessage
-            key={index}
+            key={msg.id || `${msg.sender}-${msg.timestamp}`}
             sender={msg.sender}
             text={msg.text}
             image={msg.image}
+            imageUrl={msg.imageUrl}
+            imageId={msg.imageId}
             prompt={msg.prompt}
             messageId={msg.id}
             onRegenerate={onRegenerate}
@@ -68,4 +75,4 @@ function ChatWindow({ messages, onRegenerate, onDelete }) {
   );
 }
 
-export default ChatWindow;
+export default memo(ChatWindow);

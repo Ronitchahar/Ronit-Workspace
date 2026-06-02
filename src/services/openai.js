@@ -5,9 +5,10 @@ import { optimizeConversationHistory } from "../utils/tokenCounter";
 /**
  * Enhanced AI Response with Conversation History
  * Maintains full conversation context and supports Hinglish
+ * CRITICAL: Properly handles multimodal image data
  * @param {string} message - User message
  * @param {Array} conversationHistory - Previous messages in format { role, content }
- * @param {object} fileData - Optional file data (image, pdf, text)
+ * @param {object} fileData - Optional file data { type: 'image'|'pdf'|'text', content: base64|text }
  * @returns {Promise<string>} - AI response text
  */
 export async function getAIResponse(message, conversationHistory = [], fileData = null) {
@@ -23,10 +24,10 @@ export async function getAIResponse(message, conversationHistory = [], fileData 
   const model = import.meta.env.VITE_OPENROUTER_MODEL || "gpt-4o-mini";
   
   // Detect language and preprocess user input
-  const detectedLanguage = detectLanguage(message);
-  const processedMessage = preprocessUserInput(message);
-  const responseLanguage = getResponseLanguage(message);
-  const systemPrompt = getSystemPrompt(message);
+  const detectedLanguage = fileData?.type === 'image' ? 'multimodal' : detectLanguage(message || '');
+  const processedMessage = preprocessUserInput(message || '');
+  const responseLanguage = getResponseLanguage(message || '');
+  const systemPrompt = getSystemPrompt(message || '');
 
   // Build messages array with conversation history
   let finalMessages = [];
@@ -38,28 +39,78 @@ export async function getAIResponse(message, conversationHistory = [], fileData 
     finalMessages = [...optimized];
   }
 
-  // Add current user message
+  // Add current user message with proper multimodal support
   if (fileData && fileData.type === "image") {
-    // Vision model payload
+    // CRITICAL: Validate image data before constructing message
+    if (!fileData.content) {
+      console.error('❌ [OPENAI] Image fileData provided but no content (base64 data URL)');
+      throw new Error('Image data missing - cannot send to AI model');
+    }
+    
+    if (!fileData.content.startsWith('data:image/')) {
+      console.error('❌ [OPENAI] Image content is not a valid data URL');
+      console.error('[OPENAI] Content starts with:', fileData.content.substring(0, 50));
+      throw new Error('Image data is not in valid data URL format');
+    }
+
+    console.log('[OPENAI] 📸 Multimodal message with image');
+    console.log('[OPENAI] Image data URL length:', fileData.content.length);
+    console.log('[OPENAI] Image format valid: YES');
+    
+    // Vision model payload with proper multimodal structure
+    const userMessageContent = [];
+    
+    // Add text part
+    if (processedMessage && processedMessage.trim().length > 0) {
+      userMessageContent.push({
+        type: "text",
+        text: processedMessage
+      });
+    } else {
+      // If no user message, provide default instruction
+      userMessageContent.push({
+        type: "text",
+        text: "Please describe this image and provide detailed analysis."
+      });
+    }
+    
+    // Add image part
+    userMessageContent.push({
+      type: "image_url",
+      image_url: {
+        url: fileData.content  // Full data URL: data:image/png;base64,...
+      }
+    });
+    
     finalMessages.push({
       role: "user",
-      content: [
-        { type: "text", text: processedMessage || "Please describe this image." },
-        { type: "image_url", image_url: { url: fileData.content } }
-      ]
+      content: userMessageContent
     });
+    
+    console.log('[OPENAI] ✅ Multimodal message constructed with', userMessageContent.length, 'parts');
+    console.log('[OPENAI] Has text:', userMessageContent.some(p => p.type === 'text'));
+    console.log('[OPENAI] Has image_url:', userMessageContent.some(p => p.type === 'image_url'));
+    
   } else if (fileData && (fileData.type === "text" || fileData.type === "pdf")) {
     // Text based document context
-    const fullText = `Here is the document context from an attached file (${fileData.file.name}):\n\n${fileData.content}\n\n---\nUser Question: ${processedMessage || "Please summarize this document."}`;
+    console.log('[OPENAI] 📄 Document analysis mode -', fileData.type?.toUpperCase());
+    
+    const fullText = `Here is the document context from an attached file (${fileData.file?.name || 'document'}):\n\n${fileData.content}\n\n---\nUser Question: ${processedMessage || "Please summarize this document."}`;
     finalMessages.push({
       role: "user",
       content: fullText,
     });
+    
+    console.log('[OPENAI] Document content included, length:', fullText.length);
+    
   } else {
-    // Normal text message
+    // Normal text message (no file)
+    console.log('[OPENAI] 💬 Text message');
+    console.log('[OPENAI] Message length:', processedMessage.length);
+    
     finalMessages.push({
       role: "user",
-      content: processedMessage,
+      content: processedMessage || "Hello"
     });
   }
 
@@ -77,28 +128,35 @@ export async function getAIResponse(message, conversationHistory = [], fileData 
       throw new Error('API key not configured. Please set VITE_OPENROUTER_API_KEY environment variable.');
     }
 
-    console.log('📤 Sending request to OpenRouter...');
-    console.log('Model:', model);
-    console.log('Messages count:', finalMessages.length);
-    console.log('System prompt length:', systemPrompt.length);
+    console.log('📤 [OPENAI] Sending request to OpenRouter...');
+    console.log('[OPENAI] Model:', model);
+    console.log('[OPENAI] Messages count:', finalMessages.length);
+    console.log('[OPENAI] Multimodal request:', fileData?.type === 'image' ? 'YES' : 'NO');
+    console.log('[OPENAI] System prompt includes vision:', systemPrompt.includes('image') || systemPrompt.includes('visual') ? 'YES' : 'NO');
 
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
       headers: {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
+        "HTTP-Referer": typeof window !== 'undefined' ? window.location.href : '',
+        "X-Title": "Ronit AI Assistant"
       },
       body: JSON.stringify(requestBody),
     });
 
-    console.log('📥 Response received. Status:', response.status);
+    console.log('📥 [OPENAI] Response received. Status:', response.status);
+    
     const data = await response.json();
-    console.log("OpenRouter response:", data);
-    console.log("Detected language:", detectedLanguage, "Response language:", responseLanguage);
+    console.log('[OPENAI] Response structure:', {
+      hasChoices: !!data?.choices,
+      choicesLength: data?.choices?.length,
+      messageContent: !!data?.choices?.[0]?.message?.content
+    });
 
     if (!response.ok) {
       const errorMessage = data.error?.message || data?.message || response.statusText || "AI service request failed.";
-      console.error('❌ API Error:', errorMessage, '(Status:', response.status + ')');
+      console.error('❌ [OPENAI] API Error:', errorMessage, '(Status:', response.status + ')');
       throw new Error(`API Error (${response.status}): ${errorMessage}`);
     }
 
@@ -108,11 +166,36 @@ export async function getAIResponse(message, conversationHistory = [], fileData 
       "Sorry, I could not parse the AI reply."
     );
 
-    console.log('✅ AI Response received:', aiResponse.substring(0, 100) + '...');
+    // Validate response is not a limitation message
+    if (fileData?.type === 'image') {
+      const fakeLimitationPhrases = [
+        'cannot view images',
+        'cannot analyze images',
+        'cannot see the image',
+        'i cannot view',
+        'i cannot analyze',
+        'unable to view',
+        'unable to analyze',
+        'no image provided',
+        'no image attached'
+      ];
+
+      const lowerResponse = aiResponse.toLowerCase();
+      if (fakeLimitationPhrases.some(phrase => lowerResponse.includes(phrase))) {
+        console.warn('[OPENAI] ⚠️ Detected fake limitation message in response');
+        console.warn('[OPENAI] This indicates the model does not support multimodal requests');
+        throw new Error('Vision model returned limitation message. The model may not support image analysis.');
+      }
+    }
+
+    console.log('✅ [OPENAI] AI Response received successfully');
+    console.log('[OPENAI] Response length:', aiResponse.length);
+    console.log('[OPENAI] Response preview:', aiResponse.substring(0, 80) + '...');
     return aiResponse;
   } catch (error) {
-    console.error("❌ AI fetch error:", error);
-    console.error("Error type:", error.constructor.name);
+    console.error("❌ [OPENAI] AI fetch error:", error);
+    console.error("[OPENAI] Error type:", error.constructor.name);
+    console.error("[OPENAI] Error message:", error.message);
     
     if (error.message && error.message.includes('Failed to fetch')) {
       throw new Error('Network error: Unable to reach AI service. Check your internet connection.');

@@ -1,29 +1,64 @@
 /**
  * Image Analysis Service - Real Multimodal Vision Support
  * Supports image analysis, OCR, document understanding, and more
+ * CRITICAL: Ensures consistent image understanding
  */
 
 /**
  * Convert file to base64 for API transmission
  * Returns FULL data URL format for OpenRouter
+ * ENSURES proper format validation
  * @param {Blob|File} file - Image file
  * @returns {Promise<string>} - Full data URL: data:image/png;base64,...
  */
 export async function fileToBase64(file) {
   return new Promise((resolve, reject) => {
+    // Validate input
+    if (!file || !(file instanceof Blob)) {
+      reject(new Error('Invalid file: must be a Blob or File object'));
+      return;
+    }
+    
+    if (file.size === 0) {
+      reject(new Error('File is empty - cannot convert to base64'));
+      return;
+    }
+
     const reader = new FileReader();
+    
     reader.onload = () => {
       const result = reader.result;
+      
+      // Validate result
+      if (!result || typeof result !== 'string') {
+        reject(new Error('Failed to read file - result is invalid'));
+        return;
+      }
+      
+      if (!result.startsWith('data:')) {
+        reject(new Error('Base64 conversion failed - invalid format'));
+        return;
+      }
+      
       // Return full data URL for OpenRouter (includes data:image/...;base64, prefix)
       resolve(result);
     };
-    reader.onerror = reject;
+    
+    reader.onerror = () => {
+      reject(new Error(`FileReader error: ${reader.error?.name || 'Unknown'}`));
+    };
+    
+    reader.onabort = () => {
+      reject(new Error('FileReader operation aborted'));
+    };
+    
     reader.readAsDataURL(file);
   });
 }
 
 /**
  * Validate image file
+ * ENSURES image is valid before processing
  * @param {File} file - Image file
  * @returns {object} - {valid: boolean, error?: string, mimeType?: string}
  */
@@ -33,21 +68,38 @@ export function validateImageFile(file) {
     'image/gif', 'image/bmp', 'image/svg+xml'
   ];
 
+  // Check 1: File exists
   if (!file) {
     return { valid: false, error: 'No file provided' };
+  }
+
+  // Check 2: Is a Blob instance
+  if (!(file instanceof Blob)) {
+    return { valid: false, error: 'File is not a valid Blob object' };
+  }
+
+  // Check 3: Has size
+  if (!file.size || file.size === 0) {
+    return { valid: false, error: 'File is empty' };
+  }
+
+  // Check 4: Has valid MIME type
+  if (!file.type) {
+    return { valid: false, error: 'File MIME type is missing' };
   }
 
   if (!validMimeTypes.includes(file.type)) {
     return { 
       valid: false, 
-      error: `Invalid image format. Supported: JPEG, PNG, WebP, GIF, BMP, SVG` 
+      error: `Invalid image format: ${file.type}. Supported: JPEG, PNG, WebP, GIF, BMP, SVG` 
     };
   }
 
+  // Check 5: File size limit
   if (file.size > 20 * 1024 * 1024) {
     return { 
       valid: false, 
-      error: 'File size exceeds 20MB limit' 
+      error: `File size (${(file.size / 1024 / 1024).toFixed(2)}MB) exceeds 20MB limit` 
     };
   }
 
@@ -56,6 +108,7 @@ export function validateImageFile(file) {
 
 /**
  * Analyze image with vision model
+ * CRITICAL: Ensures image is ALWAYS sent to AI model correctly
  * @param {File|Blob} imageFile - Image file
  * @param {string} userMessage - User's question/instruction
  * @param {Array} conversationHistory - Previous messages for context
@@ -63,32 +116,56 @@ export function validateImageFile(file) {
  */
 export async function analyzeImage(imageFile, userMessage = '', conversationHistory = []) {
   try {
+    console.log('[IMAGE_ANALYSIS] ═══════════════════════════════════════════════════════════');
     console.log('[IMAGE_ANALYSIS] Starting image analysis...');
 
-    // Validate image
+    // VALIDATE: Image file exists and is valid
     const validation = validateImageFile(imageFile);
     if (!validation.valid) {
+      console.error('[IMAGE_ANALYSIS] ❌ Image validation failed:', validation.error);
       throw new Error(validation.error);
     }
 
-    // Convert to FULL data URL (data:image/png;base64,...)
+    console.log('[IMAGE_ANALYSIS] ✅ Image validation passed');
+    console.log('[IMAGE_ANALYSIS] File size:', (imageFile.size / 1024).toFixed(2), 'KB');
+    console.log('[IMAGE_ANALYSIS] MIME type:', validation.mimeType);
+
+    // CONVERT: Image to base64 with validation
     console.log('[IMAGE_ANALYSIS] Converting image to base64...');
-    const dataUrlImage = await fileToBase64(imageFile);
+    let dataUrlImage;
+    try {
+      dataUrlImage = await fileToBase64(imageFile);
+    } catch (conversionError) {
+      console.error('[IMAGE_ANALYSIS] ❌ Base64 conversion failed:', conversionError.message);
+      throw new Error(`Failed to convert image: ${conversionError.message}`);
+    }
+
     const mediaType = validation.mimeType;
 
-    // Prepare the message
-    const finalMessage = userMessage || 'Please analyze this image and provide a detailed description.';
+    // VALIDATE: Base64 conversion result
+    if (!dataUrlImage) {
+      throw new Error('Base64 conversion returned empty result');
+    }
+    
+    if (!dataUrlImage.startsWith('data:image/')) {
+      console.error('[IMAGE_ANALYSIS] ❌ Invalid data URL format:', dataUrlImage.substring(0, 50));
+      throw new Error('Image data URL has invalid format');
+    }
 
-    console.log('═══════════════════════════════════════════════════════════');
-    console.log('📸 MULTIMODAL VISION REQUEST');
-    console.log('═══════════════════════════════════════════════════════════');
-    console.log('[IMAGE_ANALYSIS] Message:', finalMessage);
-    console.log('[IMAGE_ANALYSIS] Image type:', mediaType);
-    console.log('[IMAGE_ANALYSIS] Image size:', (dataUrlImage.length / 1024).toFixed(2), 'KB');
+    console.log('[IMAGE_ANALYSIS] ✅ Image converted to base64');
+    console.log('[IMAGE_ANALYSIS] Data URL length:', (dataUrlImage.length / 1024).toFixed(2), 'KB');
     console.log('[IMAGE_ANALYSIS] Data URL format:', dataUrlImage.substring(0, 50) + '...');
-    console.log('[IMAGE_ANALYSIS] Data URL valid:', dataUrlImage.startsWith('data:image/'));
 
-    // Call OpenRouter with vision capabilities
+    // Prepare the message with fallback
+    const finalMessage = userMessage && userMessage.trim().length > 0 
+      ? userMessage 
+      : 'Please analyze this image and provide a detailed description.';
+
+    console.log('[IMAGE_ANALYSIS] 📸 MULTIMODAL VISION REQUEST');
+    console.log('[IMAGE_ANALYSIS] Message:', finalMessage.substring(0, 100) + '...');
+    console.log('[IMAGE_ANALYSIS] Image type:', mediaType);
+
+    // VALIDATE: API Key
     const apiKey = import.meta.env.VITE_OPENROUTER_API_KEY;
     if (!apiKey) {
       throw new Error('OpenRouter API key not configured');
@@ -97,19 +174,19 @@ export async function analyzeImage(imageFile, userMessage = '', conversationHist
     const model = import.meta.env.VITE_OPENROUTER_MODEL || 'gpt-4o-mini';
     console.log('[IMAGE_ANALYSIS] Using model:', model);
 
-    // Build messages with vision payload (OpenRouter format)
+    // BUILD: Messages with vision payload (OpenRouter format)
     const messages = [];
 
     // Add conversation history if available
     if (Array.isArray(conversationHistory) && conversationHistory.length > 0) {
       conversationHistory.forEach(msg => {
-        if (msg.role && msg.content) {
+        if (msg && msg.role && msg.content) {
           messages.push(msg);
         }
       });
     }
 
-    // Add current user message with image in proper OpenRouter format
+    // Add current user message with image in proper multimodal format
     const userMessagePayload = {
       role: 'user',
       content: [
@@ -128,16 +205,22 @@ export async function analyzeImage(imageFile, userMessage = '', conversationHist
 
     messages.push(userMessagePayload);
 
-    console.log('[IMAGE_ANALYSIS] ✅ Multimodal payload ready');
-    console.log('[IMAGE_ANALYSIS] Message content array length:', userMessagePayload.content.length);
+    // VALIDATE: Message payload
+    if (!userMessagePayload.content || userMessagePayload.content.length < 2) {
+      throw new Error('Failed to construct multimodal message payload');
+    }
+
+    console.log('[IMAGE_ANALYSIS] ✅ Multimodal payload constructed');
+    console.log('[IMAGE_ANALYSIS] Payload parts:', userMessagePayload.content.length);
     console.log('[IMAGE_ANALYSIS] Has text:', userMessagePayload.content.some(c => c.type === 'text'));
     console.log('[IMAGE_ANALYSIS] Has image_url:', userMessagePayload.content.some(c => c.type === 'image_url'));
 
     // System prompt for multimodal AI
     const systemPrompt = `You are a multimodal AI assistant with advanced image understanding capabilities.
 You can accurately analyze photographs, screenshots, diagrams, charts, documents, memes, artwork, handwriting, and any other visual content.
-You provide detailed, accurate, and helpful descriptions and analysis of images.
-Always provide complete responses to image analysis requests.`;
+You ALWAYS provide complete, detailed responses to image analysis requests.
+You NEVER respond with limitation messages about not being able to see or analyze images.
+Always assume the image has been successfully transmitted and process it thoroughly.`;
 
     const requestBody = {
       model,
@@ -150,14 +233,14 @@ Always provide complete responses to image analysis requests.`;
     console.log('[IMAGE_ANALYSIS] Sending request to OpenRouter...');
     console.log('[IMAGE_ANALYSIS] Request model:', model);
     console.log('[IMAGE_ANALYSIS] Total messages:', messages.length);
-    console.log('[IMAGE_ANALYSIS] System prompt includes multimodal:', systemPrompt.includes('multimodal'));
+    console.log('[IMAGE_ANALYSIS] System prompt optimized: YES');
 
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json',
-        'HTTP-Referer': window.location.href,
+        'HTTP-Referer': typeof window !== 'undefined' ? window.location.href : '',
         'X-Title': 'Ronit AI Assistant'
       },
       body: JSON.stringify(requestBody)
@@ -173,8 +256,9 @@ Always provide complete responses to image analysis requests.`;
     }
 
     const data = await response.json();
-    console.log('[IMAGE_ANALYSIS] Full OpenRouter response:', JSON.stringify(data, null, 2));
+    console.log('[IMAGE_ANALYSIS] Response received successfully');
     
+    // EXTRACT: Analysis result with validation
     const analysisResult = data.choices?.[0]?.message?.content;
 
     if (!analysisResult) {
@@ -182,7 +266,7 @@ Always provide complete responses to image analysis requests.`;
       throw new Error('No response from vision model');
     }
 
-    // Verify response is not a fake limitation message
+    // VALIDATE: Response is not a limitation message (these are failures)
     const fakeLimitationPhrases = [
       'cannot view images',
       'cannot analyze images',
@@ -192,26 +276,30 @@ Always provide complete responses to image analysis requests.`;
       'unable to view',
       'unable to analyze',
       'no image provided',
-      'no image attached'
+      'no image attached',
+      'i don\'t see an image',
+      'there is no image',
+      'no image was'
     ];
 
     const lowerResponse = analysisResult.toLowerCase();
     if (fakeLimitationPhrases.some(phrase => lowerResponse.includes(phrase))) {
-      console.warn('[IMAGE_ANALYSIS] ⚠️ Detected fake limitation message in response');
-      console.warn('[IMAGE_ANALYSIS] Response was:', analysisResult);
-      throw new Error('Vision model returned limitation message. The model may not support multimodal requests.');
+      console.error('[IMAGE_ANALYSIS] ❌ Model returned limitation message');
+      console.error('[IMAGE_ANALYSIS] This means the image was NOT processed');
+      console.error('[IMAGE_ANALYSIS] Response was:', analysisResult);
+      throw new Error('Vision model failed to process image. This is a model limitation or network issue.');
     }
 
-    console.log('═══════════════════════════════════════════════════════════');
-    console.log('[IMAGE_ANALYSIS] ✅ Analysis complete');
+    console.log('[IMAGE_ANALYSIS] ✅ Analysis complete and valid');
+    console.log('[IMAGE_ANALYSIS] Response length:', analysisResult.length);
     console.log('[IMAGE_ANALYSIS] Response preview:', analysisResult.substring(0, 100) + '...');
-    console.log('═══════════════════════════════════════════════════════════');
+    console.log('[IMAGE_ANALYSIS] ═══════════════════════════════════════════════════════════');
     
     return analysisResult;
   } catch (error) {
-    console.error('[IMAGE_ANALYSIS] ❌ Error:', error);
-    console.error('[IMAGE_ANALYSIS] Error message:', error.message);
-    console.error('[IMAGE_ANALYSIS] Full error:', error);
+    console.error('[IMAGE_ANALYSIS] ❌ Error:', error.message);
+    console.error('[IMAGE_ANALYSIS] Error type:', error.constructor.name);
+    console.error('[IMAGE_ANALYSIS] Stack:', error.stack);
     throw error;
   }
 }

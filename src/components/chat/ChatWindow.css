@@ -3,11 +3,14 @@
 .chat-window {
   flex: 1;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: 20px;
   display: flex;
   flex-direction: column;
   gap: 12px;
-  scroll-behavior: smooth;
+  scroll-behavior: auto;
+  will-change: scroll-position;
+  contain: layout style paint;
 
   /* Custom scrollbar */
   scrollbar-width: thin;
@@ -49,7 +52,9 @@
 .empty-chat-icon {
   font-size: 3rem;
   opacity: 0.5;
-  animation: float 3s ease-in-out infinite;
+  /* Reduced animation complexity - simpler movement */
+  animation: float 4s ease-in-out infinite;
+  will-change: transform;
 }
 
 @keyframes float {
@@ -57,7 +62,7 @@
     transform: translateY(0px);
   }
   50% {
-    transform: translateY(-10px);
+    transform: translateY(-8px);
   }
 }
 

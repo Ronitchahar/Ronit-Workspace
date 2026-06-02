@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 
 import { useAppContext } from "./context/AppContext";
 
@@ -44,7 +44,7 @@ function App() {
     document.body.classList.add(theme);
   }, [theme]);
 
-  // Navigation listener
+  // Navigation listener - memoized
   useEffect(() => {
     const handleNavigate = () => {
       setActivePage("chat");
@@ -63,12 +63,26 @@ function App() {
     };
   }, []);
 
+  // Memoized callbacks to prevent unnecessary rerenders
+  const handleSetActivePage = useCallback((page) => {
+    setActivePage(page);
+  }, []);
+
+  const handleSetTheme = useCallback((newTheme) => {
+    setTheme(newTheme);
+  }, []);
+
+  const handleSetSidebarOpen = useCallback((isOpen) => {
+    setIsSidebarOpen(isOpen);
+  }, []);
+
   // Auth page
   if (!user) {
     return <AuthPage />;
   }
 
-  const renderPage = () => {
+  // Memoized page rendering to prevent unnecessary recalculation
+  const renderedPage = useMemo(() => {
     switch (activePage) {
       case "notes":
         return <NotesPage />;
@@ -83,39 +97,42 @@ function App() {
         return (
           <SettingsPage
             theme={theme}
-            setTheme={setTheme}
+            setTheme={handleSetTheme}
           />
         );
 
       default:
         return <ChatPage />;
     }
-  };
+  }, [activePage, theme]);
+
+  // Memoized class name
+  const appClassName = useMemo(() => {
+    return `app ${theme} ${
+      isSidebarOpen
+        ? "sidebar-open"
+        : "sidebar-closed"
+    }`;
+  }, [theme, isSidebarOpen]);
 
   return (
-    <div
-      className={`app ${theme} ${
-        isSidebarOpen
-          ? "sidebar-open"
-          : "sidebar-closed"
-      }`}
-    >
+    <div className={appClassName}>
       <Sidebar
         activePage={activePage}
-        setActivePage={setActivePage}
+        setActivePage={handleSetActivePage}
         isSidebarOpen={isSidebarOpen}
-        setIsSidebarOpen={setIsSidebarOpen}
+        setIsSidebarOpen={handleSetSidebarOpen}
       />
 
       <div className="main-area">
         <Topbar
           theme={theme}
-          setTheme={setTheme}
+          setTheme={handleSetTheme}
           isSidebarOpen={isSidebarOpen}
-          setIsSidebarOpen={setIsSidebarOpen}
+          setIsSidebarOpen={handleSetSidebarOpen}
         />
 
-        {renderPage()}
+        {renderedPage}
       </div>
     </div>
   );

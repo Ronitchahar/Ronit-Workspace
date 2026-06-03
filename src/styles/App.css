@@ -1078,9 +1078,27 @@ button.active {
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   box-shadow: inset -1px 0 0 rgba(255, 255, 255, 0.02);
-  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), padding 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1), padding 0.3s cubic-bezier(0.4, 0, 0.2, 1), border-color 0.3s;
   overflow-y: auto;
   flex-shrink: 0;
+}
+
+.notes-sidebar.collapsed {
+  width: 0 !important;
+  min-width: 0 !important;
+  max-width: 0 !important;
+  padding: 0 !important;
+  border-right-color: transparent !important;
+  overflow: hidden !important;
+}
+
+.notes-sidebar > * {
+  transition: opacity 0.2s ease-in-out;
+}
+
+.notes-sidebar.collapsed > * {
+  opacity: 0 !important;
+  pointer-events: none !important;
 }
 
 .notes-header {

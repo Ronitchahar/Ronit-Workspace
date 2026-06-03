@@ -19,6 +19,7 @@ function NotesPage() {
   const [loading, setLoading] = useState(true);
   const [isMobileViewingNote, setIsMobileViewingNote] = useState(false); // Mobile state: list vs editor
   const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   const selectedNoteIdRef = useRef(selectedNoteId);
   useEffect(() => {
@@ -329,6 +330,7 @@ function NotesPage() {
             return {
               ...note,
               pinned: !note.pinned,
+              updatedAt: new Date().toISOString(),
             };
           }
           return note;
@@ -351,25 +353,29 @@ function NotesPage() {
       })();
     }
 
-  // FILTER NOTES
+  // FILTER AND SORT NOTES
   const filteredNotes =
     useMemo(() => {
-
-      return notes.filter(
+      const filtered = notes.filter(
         (note) =>
           note.title
             .toLowerCase()
-            .includes(
-              searchQuery.toLowerCase()
-            ) ||
-
+            .includes(searchQuery.toLowerCase()) ||
           note.content
             .toLowerCase()
-            .includes(
-              searchQuery.toLowerCase()
-            )
+            .includes(searchQuery.toLowerCase())
       );
 
+      return [...filtered].sort((a, b) => {
+        // Group pinned notes at the top
+        if (a.pinned && !b.pinned) return -1;
+        if (!a.pinned && b.pinned) return 1;
+
+        // Within pinned and unpinned groups, sort chronologically by updatedAt desc
+        const timeA = new Date(a.updatedAt || a.updated_at || 0).getTime();
+        const timeB = new Date(b.updatedAt || b.updated_at || 0).getTime();
+        return timeB - timeA;
+      });
     }, [
       notes,
       searchQuery,
@@ -432,7 +438,12 @@ function NotesPage() {
           </h3>
         </div>
         <div style={{ paddingTop: "60px", height: "100%", overflow: "hidden" }}>
-          <NoteEditor selectedNote={selectedNote} updateNote={updateNote} />
+          <NoteEditor
+            selectedNote={selectedNote}
+            updateNote={updateNote}
+            sidebarCollapsed={sidebarCollapsed}
+            setSidebarCollapsed={setSidebarCollapsed}
+          />
         </div>
       </div>
     );
@@ -452,11 +463,18 @@ function NotesPage() {
           togglePin={togglePin}
           searchQuery={searchQuery}
           setSearchQuery={setSearchQuery}
+          collapsed={sidebarCollapsed}
+          setCollapsed={setSidebarCollapsed}
         />
       )}
 
       {!isMobile && (
-        <NoteEditor selectedNote={selectedNote} updateNote={updateNote} />
+        <NoteEditor
+          selectedNote={selectedNote}
+          updateNote={updateNote}
+          sidebarCollapsed={sidebarCollapsed}
+          setSidebarCollapsed={setSidebarCollapsed}
+        />
       )}
     </div>
   );

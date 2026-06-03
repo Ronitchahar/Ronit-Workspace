@@ -251,6 +251,30 @@ input {
   display: block;
 }
 
+.editable-div h1,
+.editable-div h2,
+.editable-div h3 {
+  color: var(--text);
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 8px;
+  margin-top: 24px;
+  margin-bottom: 12px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.editable-div h1 {
+  font-size: 2rem;
+}
+
+.editable-div h2 {
+  font-size: 1.6rem;
+}
+
+.editable-div h3 {
+  font-size: 1.3rem;
+}
+
 .parsed-markdown {
   width: 100%;
 }

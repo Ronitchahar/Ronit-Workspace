@@ -1,12 +1,8 @@
 function parseMarkdown(text) {
   if (!text) return "";
 
-  const escaped = text
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
-
-  const html = escaped
+  // We do NOT escape HTML here because the editor natively outputs HTML tags for formatting
+  const html = text
     .replace(/```([\s\S]*?)```/g, (_, code) => `<pre><code>${code}</code></pre>`)
     .replace(/^###### (.*)$/gm, "<h6>$1</h6>")
     .replace(/^##### (.*)$/gm, "<h5>$1</h5>")

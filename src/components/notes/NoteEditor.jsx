@@ -16,11 +16,12 @@ import { Copy, ClipboardPaste, Bold, Italic, Underline, Sparkles, Palette, Type 
 function NoteEditor({
   selectedNote,
   updateNote,
+  sidebarCollapsed,
+  setSidebarCollapsed,
 }) {
   const { setPendingAIText } = useAppContext();
   const [symbolPickerOpen, setSymbolPickerOpen] = useState(false);
   const [editorMode, setEditorMode] = useState(0);
-  const [isSaving, setIsSaving] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   const [downloadFileName, setDownloadFileName] = useState("");
   const [contextMenu, setContextMenu] = useState({ show: false, x: 0, y: 0, text: '' });
@@ -40,14 +41,14 @@ function NoteEditor({
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
-  // Sync external content changes (like switching notes) to the contentEditable div
+  // Sync external content changes (like switching notes or mode transitions) to the contentEditable div
   useEffect(() => {
     if (editorRef.current && selectedNote) {
       if (editorRef.current.innerHTML !== selectedNote.content) {
         editorRef.current.innerHTML = selectedNote.content || "";
       }
     }
-  }, [selectedNote?.id]);
+  }, [selectedNote?.id, editorMode]);
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -131,8 +132,6 @@ function NoteEditor({
 
     setContextMenu(prev => ({ ...prev, show: false }));
     updateNote({ content: editor.innerHTML });
-    setIsSaving(true);
-    setTimeout(() => setIsSaving(false), 800);
   };
 
   const applyColor = (color, isBackground = false) => {
@@ -153,8 +152,6 @@ function NoteEditor({
     }
     
     updateNote({ content: editor.innerHTML });
-    setIsSaving(true);
-    setTimeout(() => setIsSaving(false), 800);
   };
 
   const insertSymbol = (symbol) => {
@@ -165,8 +162,6 @@ function NoteEditor({
     document.execCommand('insertText', false, symbol);
 
     updateNote({ content: editor.innerHTML });
-    setIsSaving(true);
-    setTimeout(() => setIsSaving(false), 800);
   };
 
   const parseMarkdown = (text) => {
@@ -191,6 +186,213 @@ function NoteEditor({
     return `<div class="parsed-markdown">${html}</div>`;
   };
 
+  const handleKeyDown = (e) => {
+    // Only handle Enter and Space keys
+    if (e.key !== "Enter" && e.key !== " ") {
+      return;
+    }
+
+    const editor = editorRef.current;
+    if (!editor) return;
+
+    const selection = window.getSelection();
+    if (!selection || selection.rangeCount === 0) return;
+    const range = selection.getRangeAt(0);
+
+    // Helper: get text in the current block up to the cursor
+    const getTextUpToCursor = (block, rng) => {
+      if (!block) return "";
+      try {
+        const preRange = rng.cloneRange();
+        preRange.selectNodeContents(block);
+        preRange.setEnd(rng.startContainer, rng.startOffset);
+        return preRange.toString();
+      } catch (err) {
+        return "";
+      }
+    };
+
+    // Helper: convert current block's tag type (e.g. from div to h2)
+    const convertBlockTag = (block, targetTag) => {
+      const newElement = document.createElement(targetTag);
+      if (block.nodeType === Node.ELEMENT_NODE) {
+        Array.from(block.attributes).forEach(attr => {
+          newElement.setAttribute(attr.name, attr.value);
+        });
+        while (block.firstChild) {
+          newElement.appendChild(block.firstChild);
+        }
+        block.parentNode.replaceChild(newElement, block);
+      } else {
+        newElement.appendChild(block.cloneNode(true));
+        block.parentNode.replaceChild(newElement, block);
+      }
+      return newElement;
+    };
+
+    // Helper: strip the markdown characters from the start of a block node
+    const stripMarkdownPrefix = (block, length) => {
+      let charsToRemove = length;
+      const traverseAndRemove = (node) => {
+        if (charsToRemove <= 0) return;
+        if (node.nodeType === Node.TEXT_NODE) {
+          const text = node.nodeValue;
+          if (text.length <= charsToRemove) {
+            charsToRemove -= text.length;
+            node.nodeValue = "";
+          } else {
+            node.nodeValue = text.slice(charsToRemove);
+            charsToRemove = 0;
+          }
+        } else {
+          const children = Array.from(node.childNodes);
+          for (let child of children) {
+            traverseAndRemove(child);
+            if (charsToRemove <= 0) break;
+          }
+        }
+      };
+
+      traverseAndRemove(block);
+
+      const cleanUpEmpty = (node) => {
+        const children = Array.from(node.childNodes);
+        for (let child of children) {
+          if (child.nodeType === Node.TEXT_NODE) {
+            if (child.nodeValue === "") {
+              node.removeChild(child);
+            }
+          } else if (child.nodeType === Node.ELEMENT_NODE) {
+            cleanUpEmpty(child);
+            if (child.childNodes.length === 0 && child.tagName.toLowerCase() !== 'br') {
+              node.removeChild(child);
+            }
+          }
+        }
+      };
+
+      cleanUpEmpty(block);
+    };
+
+    // Helper: position cursor at start of block
+    const setCursorToStart = (element) => {
+      const sel = window.getSelection();
+      const rng = document.createRange();
+      rng.selectNodeContents(element);
+      rng.collapse(true);
+      sel.removeAllRanges();
+      sel.addRange(rng);
+      editor.focus();
+    };
+
+    // Helper: trigger content state sync to React
+    const triggerSync = () => {
+      updateNote({ content: editor.innerHTML });
+    };
+
+    // Find the enclosing block element
+    let blockNode = selection.anchorNode;
+    while (blockNode && blockNode !== editor && blockNode.nodeType !== Node.ELEMENT_NODE) {
+      blockNode = blockNode.parentNode;
+    }
+
+    let currentBlock = blockNode;
+    while (
+      currentBlock &&
+      currentBlock !== editor &&
+      !["h1", "h2", "h3", "h4", "h5", "h6", "p", "div", "li"].includes(
+        currentBlock.tagName?.toLowerCase()
+      )
+    ) {
+      currentBlock = currentBlock.parentNode;
+    }
+
+    if (!currentBlock || currentBlock === editor) {
+      if (selection.anchorNode && selection.anchorNode.parentNode === editor) {
+        currentBlock = selection.anchorNode;
+      } else {
+        return;
+      }
+    }
+
+    const textUpToCursor = getTextUpToCursor(currentBlock, range);
+    const tagName = currentBlock.tagName?.toLowerCase() || "";
+
+    if (e.key === " ") {
+      // Markdown conversion on typing space (e.g. ## -> h2)
+      if (textUpToCursor === "#" || textUpToCursor === "##" || textUpToCursor === "###") {
+        e.preventDefault();
+
+        const level = textUpToCursor.length;
+        const targetTag = `h${level}`;
+
+        // Convert block and remove prefix
+        const newBlock = convertBlockTag(currentBlock, targetTag);
+        stripMarkdownPrefix(newBlock, textUpToCursor.length);
+
+        if (!newBlock.textContent.trim() && !newBlock.querySelector('img, br')) {
+          newBlock.innerHTML = "<br>";
+        }
+
+        setCursorToStart(newBlock);
+        triggerSync();
+      }
+    } else if (e.key === "Enter") {
+      // Check if block has markdown prefix not yet converted (e.g. user typed "## Heading" and hit Enter)
+      const blockText = currentBlock.textContent || "";
+      const match = blockText.match(/^(#{1,3})(\s+)/);
+
+      if (match) {
+        e.preventDefault();
+        const level = match[1].length;
+        const targetTag = `h${level}`;
+        const prefixLength = match[0].length;
+
+        // Strip prefix and convert tag
+        stripMarkdownPrefix(currentBlock, prefixLength);
+        const headingBlock = convertBlockTag(currentBlock, targetTag);
+
+        // Insert new normal block below
+        const nextBlock = document.createElement("div");
+        nextBlock.innerHTML = "<br>";
+        headingBlock.parentNode.insertBefore(nextBlock, headingBlock.nextSibling);
+
+        setCursorToStart(nextBlock);
+        triggerSync();
+        return;
+      }
+
+      // If already a heading tag, split line on Enter and make next line normal
+      if (["h1", "h2", "h3"].includes(tagName)) {
+        e.preventDefault();
+
+        // Use range APIs to split the content at the cursor
+        const splitRange = document.createRange();
+        splitRange.setStart(range.startContainer, range.startOffset);
+        splitRange.setEndAfter(currentBlock.lastChild || currentBlock);
+
+        const fragment = splitRange.extractContents();
+
+        // If left side of the split is empty, ensure it has a <br>
+        if (!currentBlock.textContent.trim() && !currentBlock.querySelector('img, br')) {
+          currentBlock.innerHTML = "<br>";
+        }
+
+        // Create new normal text block
+        const nextBlock = document.createElement("div");
+        if (fragment.textContent.trim() || fragment.querySelector('img, br, span, strong, em')) {
+          nextBlock.appendChild(fragment);
+        } else {
+          nextBlock.innerHTML = "<br>";
+        }
+
+        currentBlock.parentNode.insertBefore(nextBlock, currentBlock.nextSibling);
+        setCursorToStart(nextBlock);
+        triggerSync();
+      }
+    }
+  };
+
   const formattedUpdatedAt = selectedNote?.updatedAt
     ? new Date(selectedNote.updatedAt).toLocaleString()
     : "";
@@ -199,7 +401,29 @@ function NoteEditor({
     <div className="note-editor">
       {selectedNote ? (
         <>
-          <div className="note-editor-header">
+          <div className="note-editor-header" style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            {sidebarCollapsed && (
+              <button
+                onClick={() => setSidebarCollapsed(false)}
+                className="sidebar-toggle-btn-editor glass-btn"
+                title="Expand Sidebar"
+                style={{
+                  width: '40px',
+                  height: '40px',
+                  borderRadius: '10px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0
+                }}
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                  <line x1="9" y1="3" x2="9" y2="21"/>
+                  <path d="M13 9l3 3-3 3"/>
+                </svg>
+              </button>
+            )}
             <input
               className="note-title-input"
               value={selectedNote.title}
@@ -306,7 +530,6 @@ function NoteEditor({
                 </button>
               </div>
               <div className="note-editor-meta">
-                {isSaving && <span className="autosave-indicator">Saving...</span>}
               </div>
             </div>
           </div>
@@ -320,10 +543,9 @@ function NoteEditor({
                   ref={editorRef}
                   className="editable-div"
                   contentEditable={editorMode !== 2}
+                  onKeyDown={handleKeyDown}
                   onInput={(e) => {
                     updateNote({ content: e.currentTarget.innerHTML });
-                    setIsSaving(true);
-                    setTimeout(() => setIsSaving(false), 800);
                   }}
                   onMouseUp={handleSelect}
                   onKeyUp={handleSelect}
